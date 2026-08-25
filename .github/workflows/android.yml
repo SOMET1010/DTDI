@@ -19,6 +19,8 @@ jobs:
         run: node tests/pedagogical-contract-compatibility.test.js
       - name: Tests du mode zéro lecture
         run: node tests/zero-reading-mode.test.js
+      - name: Tests de neutralité des cartes de choix
+        run: node tests/choice-card-neutrality.test.js
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
