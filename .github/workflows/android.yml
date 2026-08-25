@@ -17,6 +17,8 @@ jobs:
         run: node tests/content-structure.test.js
       - name: Tests de compatibilité avec le contrat pédagogique
         run: node tests/pedagogical-contract-compatibility.test.js
+      - name: Tests du mode zéro lecture
+        run: node tests/zero-reading-mode.test.js
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
