@@ -18,7 +18,7 @@ env:
 
 jobs:
   review:
-    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -80,20 +80,20 @@ jobs:
 
       - name: Independent ChatGPT review
         id: reviewer
-        if: env.OPENAI_API_KEY != ''
+        if: github.event_name == 'pull_request' && env.OPENAI_API_KEY != ''
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node .orchestrator/reviewer.mjs
 
       - name: Publish review to PR
-        if: steps.reviewer.outcome == 'success'
+        if: github.event_name == 'pull_request' && steps.reviewer.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: gh pr comment "${{ github.event.pull_request.number }}" --body-file .orchestrator/runtime/review-comment.md
 
       - name: Claude corrects NOK findings
-        if: steps.reviewer.outputs.needs_claude == 'true' && env.ANTHROPIC_API_KEY != ''
+        if: github.event_name == 'pull_request' && steps.reviewer.outputs.needs_claude == 'true' && env.ANTHROPIC_API_KEY != ''
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
@@ -106,6 +106,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pass-ai-review-${{ github.event.pull_request.number }}-${{ github.sha }}
+          name: pass-ai-review-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
           path: .orchestrator/runtime/
           if-no-files-found: warn
