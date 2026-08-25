@@ -1,0 +1,18 @@
+{
+  "name": "pass-ai-orchestrator-cockpit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PASS AI Orchestrator Cockpit - supervision et pilotage de l'orchestration Claude / ChatGPT / GitHub Actions pour PASS Academy.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test tests/**/*.test.js",
+    "sync:once": "node src/sync-once.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

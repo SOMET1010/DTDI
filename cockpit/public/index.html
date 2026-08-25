@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PASS AI Orchestrator Cockpit</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="topbar-title">PASS AI Orchestrator Cockpit</span>
+      <span class="topbar-subtitle">Poste de commandement — humain au-dessus, agents en dessous, preuves au centre</span>
+    </div>
+    <div class="topbar-controls">
+      <span id="healthBadge" class="health-badge" title="Diagnostic">…</span>
+      <select id="missionSelect" aria-label="Mission"></select>
+      <button id="newMissionBtn" class="btn btn-ghost" type="button">+ Nouvelle mission</button>
+      <button id="syncBtn" class="btn btn-ghost" type="button">↻ Sync</button>
+      <button id="themeToggle" class="btn btn-icon" type="button" title="Changer de thème" aria-label="Changer de thème">🌓</button>
+    </div>
+  </header>
+
+  <main id="app">
+    <section id="emptyState" class="empty-state hidden">
+      <h2>Aucune mission sélectionnée</h2>
+      <p>Créez une mission pour commencer à superviser l'orchestration Claude ↔ ChatGPT ↔ GitHub.</p>
+    </section>
+
+    <div id="cockpit" class="cockpit hidden">
+      <!-- 1. état global (mobile priority #1) -->
+      <section id="stateBanner" class="state-banner" data-state="IDLE">
+        <div class="state-banner-main">
+          <span id="stateIcon" class="state-icon">?</span>
+          <div>
+            <div id="stateLabel" class="state-label">—</div>
+            <div id="stateMeta" class="state-meta">—</div>
+          </div>
+        </div>
+        <div id="cycleBadge" class="cycle-badge">cycle —</div>
+      </section>
+
+      <!-- 2-3. lot / agent actif -->
+      <section class="mission-header">
+        <div>
+          <h1 id="projectName">—</h1>
+          <div id="missionLine" class="mission-line">—</div>
+        </div>
+        <div class="mission-header-right">
+          <div id="prLink" class="pr-link">—</div>
+          <div id="lastActivity" class="last-activity">—</div>
+        </div>
+      </section>
+
+      <!-- Arbitrage humain requis (bloque tout le reste tant qu'ouvert) -->
+      <section id="arbitrationPanel" class="arbitration-panel hidden">
+        <h2>👤 Intervention de Patrick requise</h2>
+        <p id="arbitrationReason">—</p>
+        <div class="arbitration-actions">
+          <button class="btn btn-go" data-decision="GRANTED" type="button">Autoriser</button>
+          <button class="btn btn-nok" data-decision="REFUSED" type="button">Refuser</button>
+          <button class="btn btn-ghost" data-decision="CHANGES_REQUESTED" type="button">Demander modification</button>
+          <button class="btn btn-ghost" id="pauseBtn" type="button">Suspendre</button>
+          <button class="btn btn-ghost" id="resumeBtn" type="button">Reprendre</button>
+        </div>
+      </section>
+
+      <!-- Pipeline visuel -->
+      <section class="pipeline" id="pipeline" aria-label="Pipeline d'orchestration"></section>
+
+      <!-- Cartes Claude / ChatGPT -->
+      <section class="cards-grid">
+        <article class="card" id="claudeCard">
+          <h2>🤖 Claude — Développement</h2>
+          <dl class="card-facts" id="claudeFacts"></dl>
+        </article>
+        <article class="card" id="reviewCard">
+          <h2>🔎 ChatGPT — QA</h2>
+          <div id="verdictBadge" class="verdict-badge">—</div>
+          <p id="reviewSummary" class="review-summary">—</p>
+          <div id="findingsCounts" class="findings-counts"></div>
+          <ul id="findingsList" class="findings-list"></ul>
+        </article>
+      </section>
+
+      <!-- Timeline -->
+      <section class="timeline-section">
+        <div class="timeline-header">
+          <h2>Timeline</h2>
+          <label class="tech-toggle"><input type="checkbox" id="techToggle" /> Vue technique</label>
+        </div>
+        <ol id="timeline" class="timeline"></ol>
+      </section>
+    </div>
+  </main>
+
+  <!-- Centre de mission (minimal) -->
+  <dialog id="missionDialog">
+    <form id="missionForm" method="dialog">
+      <h2>Nouvelle mission</h2>
+      <label>Projet
+        <select id="fProject" required></select>
+      </label>
+      <label>Identifiant mission
+        <input id="fMissionKey" placeholder="PASS-C1.3-001" required />
+      </label>
+      <label>Lot
+        <input id="fLot" placeholder="C1.3" required />
+      </label>
+      <label>Objectif
+        <input id="fObjective" placeholder="Unifier renderPilot et renderBasic" required />
+      </label>
+      <label>N° de Pull Request GitHub
+        <input id="fPrNumber" type="number" min="1" placeholder="1" />
+      </label>
+      <label>Cycles automatiques max
+        <input id="fMaxCycles" type="number" min="1" value="2" required />
+      </label>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="cancelMissionBtn">Annuler</button>
+        <button type="submit" class="btn btn-go">Lancer l'orchestration</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

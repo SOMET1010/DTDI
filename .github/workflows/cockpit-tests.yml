@@ -1,0 +1,24 @@
+name: Cockpit Tests
+
+on:
+  push:
+    paths: ["cockpit/**", ".github/workflows/cockpit-tests.yml"]
+  pull_request:
+    paths: ["cockpit/**", ".github/workflows/cockpit-tests.yml"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cockpit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        run: npm install
+      - name: Run cockpit test suite
+        run: npm test
