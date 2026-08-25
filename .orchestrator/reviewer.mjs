@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 
 for (const key of ['OPENAI_API_KEY','GITHUB_REPOSITORY','GITHUB_EVENT_PATH']) if (!process.env[key]) throw new Error(`Missing env ${key}`);
 const model = process.env.OPENAI_REVIEW_MODEL || 'gpt-5.6';
+const protocol = 'v2';
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
 const pr = event.pull_request;
 if (!pr) throw new Error('pull_request event required');
@@ -24,15 +25,30 @@ const outputText=data.output_text||data.output?.flatMap(x=>x.content||[]).find(x
 if(!outputText) throw new Error('No structured review output returned');
 const review=JSON.parse(outputText);
 fs.mkdirSync('.orchestrator/runtime',{recursive:true});
-let priorNok=0;
-if(process.env.GITHUB_TOKEN){const r=await fetch(`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/${pr.number}/comments?per_page=100`,{headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','User-Agent':'pass-ai-orchestrator'}});if(r.ok){const cs=await r.json();priorNok=cs.filter(c=>c.body?.includes('<!-- PASS-AI-REVIEW')&&c.body?.includes('ChatGPT QA — NOK')).length;}}
-if(review.next_action==='CORRECT_AND_RESUBMIT'&&priorNok>=2){review.review_verdict='BLOCKED';review.next_action='REQUEST_HUMAN_ARBITRATION';review.summary=`Escalade humaine après ${priorNok} cycles NOK automatiques. ${review.summary}`;}
+
+async function countPriorNok() {
+  if (!process.env.GITHUB_TOKEN) return 0;
+  let page = 1, count = 0;
+  while (true) {
+    const url=`https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/issues/${pr.number}/comments?per_page=100&page=${page}`;
+    const r=await fetch(url,{headers:{Authorization:`Bearer ${process.env.GITHUB_TOKEN}`,Accept:'application/vnd.github+json','User-Agent':'pass-ai-orchestrator'}});
+    if(!r.ok) throw new Error(`GitHub comments API ${r.status}`);
+    const comments=await r.json();
+    count += comments.filter(c => c.user?.login === 'github-actions[bot]' && c.body?.includes(`<!-- PASS-AI-REVIEW protocol=${protocol} `) && c.body?.includes('ChatGPT QA — NOK')).length;
+    if(comments.length < 100) break;
+    page += 1;
+  }
+  return count;
+}
+
+const priorNok=await countPriorNok();
+if(review.next_action==='CORRECT_AND_RESUBMIT'&&priorNok>=1){review.review_verdict='BLOCKED';review.next_action='REQUEST_HUMAN_ARBITRATION';review.summary=`Escalade humaine au deuxième NOK du protocole ${protocol}. ${review.summary}`;}
 fs.writeFileSync('.orchestrator/runtime/review.json',JSON.stringify(review,null,2)+'\n');
-const lines=[`<!-- PASS-AI-REVIEW run=${runId} -->`,`## ChatGPT QA — ${review.review_verdict}`,'',review.summary,'',...review.findings.flatMap(f=>[`### ${f.id} — ${f.severity} — ${f.status}`,f.finding,f.location?`**Localisation:** ${f.location}`:'',f.evidence?.length?`**Preuves:** ${f.evidence.join(' | ')}`:'',`**Correction demandée:** ${f.required_fix}`,`**À préserver:** ${f.must_preserve.join(' | ')}`,`**Revalidation:** ${f.revalidation.join(' | ')}`,'']),review.not_verified?.length?`**Non vérifié:** ${review.not_verified.join(' | ')}`:'','',`**Action:** ${review.next_action}`].filter(Boolean);
+const lines=[`<!-- PASS-AI-REVIEW protocol=${protocol} run=${runId} -->`,`## ChatGPT QA — ${review.review_verdict}`,'',review.summary,'',...review.findings.flatMap(f=>[`### ${f.id} — ${f.severity} — ${f.status}`,f.finding,f.location?`**Localisation:** ${f.location}`:'',f.evidence?.length?`**Preuves:** ${f.evidence.join(' | ')}`:'',`**Correction demandée:** ${f.required_fix}`,`**À préserver:** ${f.must_preserve.join(' | ')}`,`**Revalidation:** ${f.revalidation.join(' | ')}`,'']),review.not_verified?.length?`**Non vérifié:** ${review.not_verified.join(' | ')}`:'','',`**Action:** ${review.next_action}`].filter(Boolean);
 const needsClaude=review.next_action==='CORRECT_AND_RESUBMIT';
 if(needsClaude) lines.push('','@claude Correction automatique demandée sur les seuls constats NOK ci-dessus.');
 fs.writeFileSync('.orchestrator/runtime/review-comment.md',lines.join('\n')+'\n');
-const claudePrompt=needsClaude?`You are the PASS Academy implementation agent. Fix ONLY the independent reviewer findings below on the current PR branch. Preserve doctrine and invariants. Do not broaden scope, deploy/release, delete data, alter sensitive/security behavior or real-money behavior. Run requested tests and push the correction to this PR branch.\n\n${lines.join('\n')}`:'';
+const claudePrompt=needsClaude?`You are the PASS Academy implementation agent. Fix ONLY the independent reviewer findings below on the current PR branch. Preserve doctrine and invariants. Do not broaden scope, deploy/release, delete data, alter sensitive/security behavior or real-money behavior. Run requested tests. The GitHub action owns commit/push mechanics.\n\n${lines.join('\n')}`:'';
 fs.writeFileSync('.orchestrator/runtime/claude-fix-prompt.md',claudePrompt+'\n');
 if(process.env.GITHUB_OUTPUT){fs.appendFileSync(process.env.GITHUB_OUTPUT,`verdict=${review.review_verdict}\nnext_action=${review.next_action}\nneeds_claude=${needsClaude}\n`);if(claudePrompt){const m=`PROMPT_${Date.now()}`;fs.appendFileSync(process.env.GITHUB_OUTPUT,`claude_prompt<<${m}\n${claudePrompt}\n${m}\n`);}}
-console.log(JSON.stringify({verdict:review.review_verdict,next_action:review.next_action,needsClaude}));
+console.log(JSON.stringify({verdict:review.review_verdict,next_action:review.next_action,needsClaude,priorNok,protocol}));
