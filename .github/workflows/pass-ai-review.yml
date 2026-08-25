@@ -1,0 +1,111 @@
+name: PASS AI Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+env:
+  OPENAI_REVIEW_MODEL: gpt-5.6
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  review:
+    if: github.event_name == 'pull_request' && github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Content structure tests
+        id: content_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p .orchestrator/runtime
+          set -o pipefail
+          node tests/content-structure.test.js 2>&1 | tee .orchestrator/runtime/content-tests.log
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Android debug build
+        id: android_build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --stacktrace 2>&1 | tee .orchestrator/runtime/android-build.log
+
+      - name: Prepare evidence summary
+        shell: bash
+        run: |
+          {
+            echo "content_structure_tests=${{ steps.content_tests.outcome }}"
+            echo "android_debug_build=${{ steps.android_build.outcome }}"
+            echo "apk_exists=$(test -f app/build/outputs/apk/debug/app-debug.apk && echo yes || echo no)"
+            echo
+            echo "--- content tests tail ---"
+            tail -n 80 .orchestrator/runtime/content-tests.log || true
+            echo
+            echo "--- android build tail ---"
+            tail -n 120 .orchestrator/runtime/android-build.log || true
+          } > .orchestrator/runtime/test-summary.txt
+
+      - name: Setup incomplete
+        if: env.OPENAI_API_KEY == '' || env.ANTHROPIC_API_KEY == ''
+        run: |
+          echo '### PASS AI Orchestrator not activated' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Add repository secrets OPENAI_API_KEY and ANTHROPIC_API_KEY.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Independent ChatGPT review
+        id: reviewer
+        if: env.OPENAI_API_KEY != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .orchestrator/reviewer.mjs
+
+      - name: Publish review to PR
+        if: steps.reviewer.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: gh pr comment "${{ github.event.pull_request.number }}" --body-file .orchestrator/runtime/review-comment.md
+
+      - name: Claude corrects NOK findings
+        if: steps.reviewer.outputs.needs_claude == 'true' && env.ANTHROPIC_API_KEY != ''
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.reviewer.outputs.claude_prompt }}
+          claude_args: |
+            --max-turns 12
+            --allowedTools "Bash(node tests/content-structure.test.js),Bash(gradle :app:assembleDebug:*),Bash(git status:*),Bash(git diff:*),View,GlobTool,GrepTool"
+
+      - name: Upload machine-readable review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pass-ai-review-${{ github.event.pull_request.number }}-${{ github.sha }}
+          path: .orchestrator/runtime/
+          if-no-files-found: warn
