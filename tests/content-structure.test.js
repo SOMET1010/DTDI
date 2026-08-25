@@ -16,7 +16,8 @@ const RECOGNIZED_ACTIONS = ['next', 'choice', 'finish'];
 const EXPECTED_STORY_COUNT = 10;
 
 console.log(
-  'Chargement de content/stories-v13.js, ejustice-pilot-v13.js, narrative-pilots-v13.js, basic-pilots-v13.js...\n'
+  'Chargement de content/stories-v13.js, ejustice-pilot-v13.js, narrative-pilots-v13.js, ' +
+  'basic-pilots-v13.js, art/scenes-v13.js...\n'
 );
 
 const ctx = loadContentGlobals([
@@ -24,12 +25,14 @@ const ctx = loadContentGlobals([
   'content/ejustice-pilot-v13.js',
   'content/narrative-pilots-v13.js',
   'content/basic-pilots-v13.js',
+  'art/scenes-v13.js',
 ]);
 
 const stories = ctx.PASS_STORIES;
 const ejusticePilot = ctx.PASS_EJUSTICE_PILOT;
 const narrativePilots = ctx.PASS_NARRATIVE_PILOTS;
 const basicPilots = ctx.PASS_BASIC_PILOTS;
+const sceneArt = ctx.PASS_SCENES || {};
 
 function getPilot(id) {
   if (id === 'ejustice') return ejusticePilot;
@@ -133,6 +136,20 @@ for (const id of STORY_IDS) {
       pilot.scenes.some((sc) => sc.action === 'finish'),
       `"${id}" n'a pas de scène "finish"`
     );
+  });
+
+  test(`"${id}" : chaque scène a une illustration (art/scenes-v13.js)`, () => {
+    const art = sceneArt[id];
+    assert.ok(
+      Array.isArray(art) && art.length === pilot.scenes.length,
+      `"${id}" : PASS_SCENES doit avoir ${pilot.scenes.length} illustration(s), trouvé ${(art || []).length}`
+    );
+    art.forEach((svg, i) => {
+      assert.ok(
+        typeof svg === 'string' && svg.trim().startsWith('<svg'),
+        `"${id}" scène ${i} : illustration absente ou invalide`
+      );
+    });
   });
 }
 
