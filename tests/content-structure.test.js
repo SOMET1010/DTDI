@@ -1,8 +1,10 @@
 'use strict';
 
-// C1.10 (amorce) — tests de structure sur le contenu actuel (V1.3).
-// But : détecter toute rupture du contrat de données pendant le refactor
-// C1.2/C1.3, sans imposer de changement de format aujourd'hui.
+// C1.10 (amorce, étendue en C1.3) — tests de structure sur le contenu V1.3.
+// But : détecter toute rupture du contrat de données pendant le refactor,
+// sans imposer de changement de format au-delà de ce que C1.3 a introduit
+// (chaque histoire du catalogue doit désormais résoudre vers un pilote
+// scenes[] : c'est devenu le seul moteur, cf. narrative-engine.js).
 //
 // Lancer : node tests/content-structure.test.js
 
@@ -11,24 +13,27 @@ const { loadContentGlobals } = require('./lib/load-content');
 const { test, summary } = require('./lib/mini-test');
 
 const RECOGNIZED_ACTIONS = ['next', 'choice', 'finish'];
-const EXPECTED_PILOT_IDS = ['ejustice', 'money', 'phone-photo', 'scam'];
 const EXPECTED_STORY_COUNT = 10;
 
-console.log('Chargement de content/stories-v13.js, ejustice-pilot-v13.js, narrative-pilots-v13.js...\n');
+console.log(
+  'Chargement de content/stories-v13.js, ejustice-pilot-v13.js, narrative-pilots-v13.js, basic-pilots-v13.js...\n'
+);
 
 const ctx = loadContentGlobals([
   'content/stories-v13.js',
   'content/ejustice-pilot-v13.js',
   'content/narrative-pilots-v13.js',
+  'content/basic-pilots-v13.js',
 ]);
 
 const stories = ctx.PASS_STORIES;
 const ejusticePilot = ctx.PASS_EJUSTICE_PILOT;
 const narrativePilots = ctx.PASS_NARRATIVE_PILOTS;
+const basicPilots = ctx.PASS_BASIC_PILOTS;
 
 function getPilot(id) {
   if (id === 'ejustice') return ejusticePilot;
-  return narrativePilots ? narrativePilots[id] : undefined;
+  return (narrativePilots && narrativePilots[id]) || (basicPilots && basicPilots[id]);
 }
 
 // --- Catalogue (PASS_STORIES) ---
@@ -56,12 +61,16 @@ test('les ids du catalogue sont uniques', () => {
   );
 });
 
-// --- Histoires pilotes ---
+// --- Histoires jouables (moteur unique depuis C1.3) ---
+// Toute histoire du catalogue doit résoudre vers un pilote scenes[] :
+// il n'existe plus de second moteur de secours (renderBasic supprimé).
 
-test('les 4 histoires pilotes (ejustice, money, phone-photo, scam) existent', () => {
-  for (const id of EXPECTED_PILOT_IDS) {
+const STORY_IDS = stories.map((s) => s.id);
+
+test('chaque histoire du catalogue résout vers un pilote (scenes[])', () => {
+  for (const id of STORY_IDS) {
     const pilot = getPilot(id);
-    assert.ok(pilot, `pilote manquant : "${id}"`);
+    assert.ok(pilot, `aucun pilote pour l'histoire "${id}"`);
     assert.strictEqual(
       pilot.id,
       id,
@@ -70,16 +79,16 @@ test('les 4 histoires pilotes (ejustice, money, phone-photo, scam) existent', ()
   }
 });
 
-for (const id of EXPECTED_PILOT_IDS) {
+for (const id of STORY_IDS) {
   const pilot = getPilot(id);
   if (!pilot) continue; // déjà signalé par le test précédent
 
-  test(`pilote "${id}" : au moins une scène`, () => {
+  test(`"${id}" : au moins une scène`, () => {
     assert.ok(Array.isArray(pilot.scenes), `"${id}".scenes doit être un tableau`);
     assert.ok(pilot.scenes.length >= 1, `"${id}" n'a aucune scène`);
   });
 
-  test(`pilote "${id}" : chaque scène a une action reconnue (${RECOGNIZED_ACTIONS.join('/')})`, () => {
+  test(`"${id}" : chaque scène a une action reconnue (${RECOGNIZED_ACTIONS.join('/')})`, () => {
     pilot.scenes.forEach((sc, i) => {
       assert.ok(
         RECOGNIZED_ACTIONS.includes(sc.action),
@@ -88,7 +97,7 @@ for (const id of EXPECTED_PILOT_IDS) {
     });
   });
 
-  test(`pilote "${id}" : chaque scène a une voix non vide`, () => {
+  test(`"${id}" : chaque scène a une voix non vide`, () => {
     pilot.scenes.forEach((sc, i) => {
       assert.ok(
         typeof sc.voice === 'string' && sc.voice.trim().length > 0,
@@ -97,7 +106,7 @@ for (const id of EXPECTED_PILOT_IDS) {
     });
   });
 
-  test(`pilote "${id}" : chaque scène "choice" a au moins 2 choix`, () => {
+  test(`"${id}" : chaque scène "choice" a au moins 2 choix`, () => {
     pilot.scenes.forEach((sc, i) => {
       if (sc.action !== 'choice') return;
       assert.ok(
@@ -107,7 +116,7 @@ for (const id of EXPECTED_PILOT_IDS) {
     });
   });
 
-  test(`pilote "${id}" : chaque scène "choice" a exactement une réponse correcte`, () => {
+  test(`"${id}" : chaque scène "choice" a exactement une réponse correcte`, () => {
     pilot.scenes.forEach((sc, i) => {
       if (sc.action !== 'choice') return;
       const goodCount = sc.choices.filter((c) => c.good === true).length;
@@ -119,7 +128,7 @@ for (const id of EXPECTED_PILOT_IDS) {
     });
   });
 
-  test(`pilote "${id}" : atteint une scène "finish"`, () => {
+  test(`"${id}" : atteint une scène "finish"`, () => {
     assert.ok(
       pilot.scenes.some((sc) => sc.action === 'finish'),
       `"${id}" n'a pas de scène "finish"`
