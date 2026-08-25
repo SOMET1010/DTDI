@@ -111,7 +111,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       needs.review.outputs.needs_claude == 'true' &&
-      env.ANTHROPIC_CONFIGURED == 'true' &&
+      secrets.ANTHROPIC_API_KEY != '' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login == github.repository_owner
     runs-on: ubuntu-latest
