@@ -108,9 +108,15 @@ select, input {
   cursor: pointer;
 }
 .btn:hover { filter: brightness(0.97); }
+.btn:disabled { cursor: not-allowed; opacity: 0.65; }
 .btn-icon { padding: 0.45rem 0.55rem; }
 .btn-go { background: var(--go); border-color: var(--go); color: #fff; }
 .btn-nok { background: var(--nok); border-color: var(--nok); color: #fff; }
+
+/* Sync button feedback: grey while working, green on success, red on failure. */
+#syncBtn[data-state="loading"] { background: var(--surface-2); color: var(--text-muted); opacity: 0.7; }
+#syncBtn[data-state="done"] { background: var(--go-bg); border-color: var(--go); color: var(--go); font-weight: 600; }
+#syncBtn[data-state="error"] { background: var(--nok-bg); border-color: var(--nok); color: var(--nok); font-weight: 600; }
 
 .health-badge {
   font-size: 0.75rem;

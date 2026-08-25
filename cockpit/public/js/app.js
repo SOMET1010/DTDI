@@ -363,14 +363,25 @@ function initControls() {
 
   el('syncBtn').addEventListener('click', async () => {
     if (!currentMissionId) return;
-    el('syncBtn').disabled = true;
+    const btn = el('syncBtn');
+    btn.disabled = true;
+    btn.dataset.state = 'loading';
+    btn.textContent = '⏳ Sync…';
     try {
       await api(`/missions/${currentMissionId}/sync`, { method: 'POST' });
       await refreshCockpit();
+      btn.dataset.state = 'done';
+      btn.textContent = '✓ Synchronisé';
     } catch (err) {
+      btn.dataset.state = 'error';
+      btn.textContent = '✕ Échec';
       alert(`Synchronisation impossible : ${err.message}`);
     } finally {
-      el('syncBtn').disabled = false;
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.dataset.state = '';
+        btn.textContent = '↻ Sync';
+      }, 1500);
     }
   });
 
