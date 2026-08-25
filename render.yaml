@@ -1,0 +1,29 @@
+# Render Blueprint for PASS AI Orchestrator Cockpit.
+# Deploy: render.com -> New -> Blueprint -> select this repository.
+# Render reads this file, provisions the service + persistent disk, and
+# prompts only for the one secret marked `sync: false` below.
+services:
+  - type: web
+    name: pass-ai-cockpit
+    runtime: node
+    plan: starter
+    rootDir: cockpit
+    buildCommand: npm install
+    startCommand: npm start
+    disk:
+      name: cockpit-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: GITHUB_OWNER
+        value: SOMET1010
+      - key: GITHUB_REPO
+        value: DTDI
+      - key: GITHUB_DEFAULT_BRANCH
+        value: pass-academy-v03
+      - key: COCKPIT_DB_PATH
+        value: /var/data/cockpit.sqlite
+      - key: GITHUB_TOKEN
+        sync: false
