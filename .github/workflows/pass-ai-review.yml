@@ -6,20 +6,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: read
+  contents: read
 
 env:
   OPENAI_REVIEW_MODEL: gpt-5.6
-  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+  OPENAI_CONFIGURED: ${{ secrets.OPENAI_API_KEY != '' }}
+  ANTHROPIC_CONFIGURED: ${{ secrets.ANTHROPIC_API_KEY != '' }}
 
 jobs:
   review:
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.draft == false)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      actions: read
+    outputs:
+      needs_claude: ${{ steps.reviewer.outputs.needs_claude }}
+      claude_prompt: ${{ steps.reviewer.outputs.claude_prompt }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,15 +78,16 @@ jobs:
           } > .orchestrator/runtime/test-summary.txt
 
       - name: Setup incomplete
-        if: env.OPENAI_API_KEY == '' || env.ANTHROPIC_API_KEY == ''
+        if: env.OPENAI_CONFIGURED != 'true' || env.ANTHROPIC_CONFIGURED != 'true'
         run: |
-          echo '### PASS AI Orchestrator not activated' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Add repository secrets OPENAI_API_KEY and ANTHROPIC_API_KEY.' >> "$GITHUB_STEP_SUMMARY"
+          echo '### PASS AI Orchestrator partially configured' >> "$GITHUB_STEP_SUMMARY"
+          echo 'OPENAI_API_KEY and ANTHROPIC_API_KEY are required for the full review/correction loop.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Independent ChatGPT review
         id: reviewer
-        if: github.event_name == 'pull_request' && env.OPENAI_API_KEY != ''
+        if: github.event_name == 'pull_request' && env.OPENAI_CONFIGURED == 'true'
         env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node .orchestrator/reviewer.mjs
 
@@ -92,16 +98,6 @@ jobs:
         shell: bash
         run: gh pr comment "${{ github.event.pull_request.number }}" --body-file .orchestrator/runtime/review-comment.md
 
-      - name: Claude corrects NOK findings
-        if: github.event_name == 'pull_request' && steps.reviewer.outputs.needs_claude == 'true' && env.ANTHROPIC_API_KEY != ''
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ env.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.reviewer.outputs.claude_prompt }}
-          claude_args: |
-            --max-turns 12
-            --allowedTools "Bash(node tests/content-structure.test.js),Bash(gradle :app:assembleDebug:*),Bash(git status:*),Bash(git diff:*),View,GlobTool,GrepTool"
-
       - name: Upload machine-readable review
         if: always()
         uses: actions/upload-artifact@v4
@@ -109,3 +105,33 @@ jobs:
           name: pass-ai-review-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
           path: .orchestrator/runtime/
           if-no-files-found: warn
+
+  correct:
+    needs: review
+    if: >-
+      github.event_name == 'pull_request' &&
+      needs.review.outputs.needs_claude == 'true' &&
+      env.ANTHROPIC_CONFIGURED == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Claude corrects NOK findings
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ needs.review.outputs.claude_prompt }}
+          claude_args: |
+            --max-turns 12
+            --allowedTools "Edit,Read,Write,Bash(node tests/content-structure.test.js),Bash(gradle :app:assembleDebug:*),Bash(git status:*),Bash(git diff:*),GlobTool,GrepTool"
