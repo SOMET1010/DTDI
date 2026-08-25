@@ -339,6 +339,55 @@ function renderTimeline(data) {
   }
 }
 
+// Fetched lazily, separately from the main cockpit payload: it needs one
+// extra round trip to GitHub per artifact (list artifacts -> list files
+// inside the zip) so it must never block the state banner / cards from
+// rendering immediately.
+async function renderVisualEvidence(runId) {
+  const container = el('visualEvidence');
+  if (!runId) {
+    container.innerHTML = '<p class="review-summary">Aucun commit à examiner pour le moment.</p>';
+    return;
+  }
+  container.innerHTML = '<p class="review-summary">Recherche de captures…</p>';
+  try {
+    const artifacts = await api(`/runs/${runId}/artifacts`);
+    if (!artifacts.length) {
+      container.innerHTML = '<p class="review-summary">Aucune capture disponible pour ce commit.</p>';
+      return;
+    }
+    const shots = [];
+    for (const artifact of artifacts) {
+      const files = await api(`/runs/${runId}/artifacts/${artifact.id}/files`);
+      for (const file of files) {
+        if (file.contentType.startsWith('image/')) {
+          shots.push({ artifactId: artifact.id, path: file.path });
+        }
+      }
+    }
+    if (!shots.length) {
+      container.innerHTML = '<p class="review-summary">Aucune capture disponible pour ce commit — non vérifié visuellement.</p>';
+      return;
+    }
+    container.innerHTML = '';
+    for (const shot of shots) {
+      const fig = document.createElement('div');
+      fig.className = 'evidence-shot';
+      const img = document.createElement('img');
+      img.src = `/runs/${runId}/artifacts/${shot.artifactId}/files/${shot.path}`;
+      img.alt = shot.path;
+      img.loading = 'lazy';
+      const caption = document.createElement('div');
+      caption.className = 'evidence-caption';
+      caption.textContent = shot.path.split('/').pop();
+      fig.append(img, caption);
+      container.appendChild(fig);
+    }
+  } catch (err) {
+    container.innerHTML = `<p class="review-summary">Captures indisponibles : ${err.message}</p>`;
+  }
+}
+
 async function refreshCockpit() {
   if (!currentMissionId) return;
   const data = await api(`/missions/${currentMissionId}/cockpit`);
@@ -349,6 +398,7 @@ async function refreshCockpit() {
   renderClaudeCard(data);
   renderReviewCard(data);
   renderTimeline(data);
+  renderVisualEvidence(data.latestRun ? data.latestRun.id : null);
 }
 
 // ---------------- wiring ----------------

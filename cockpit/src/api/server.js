@@ -3,6 +3,7 @@
 const express = require('express');
 const path = require('node:path');
 const { syncMission } = require('../github/sync');
+const { listArtifactFiles, readArtifactFile } = require('../github/artifactFiles');
 const { MISSION_STATES } = require('../domain/states');
 
 function notFound(res, what) {
@@ -200,6 +201,64 @@ function createApp({ orchestrationRepo, github = null, owner = null, repoName = 
     if (!run) return notFound(res, 'Run');
     const review = orchestrationRepo.getReviewForRun(run.id);
     res.json(review ? orchestrationRepo.listFindingsForReview(review.id) : []);
+  });
+
+  // --- artifacts / visual evidence (section 17) --------------------------
+  // GitHub is the source of truth for build/test artifacts — the cockpit
+  // never copies them into its own database, only proxies them through so
+  // the frontend never needs a GitHub token of its own.
+  function requireGithubRun(req, res) {
+    const run = orchestrationRepo.getRun(Number(req.params.id));
+    if (!run) {
+      notFound(res, 'Run');
+      return null;
+    }
+    if (!run.workflow_run_id) {
+      res.json([]);
+      return null;
+    }
+    if (!github || !owner || !repoName) {
+      res.status(503).json({ error: 'Connexion GitHub non configurée (GITHUB_TOKEN manquant)' });
+      return null;
+    }
+    return run;
+  }
+
+  app.get('/runs/:id/artifacts', async (req, res) => {
+    const run = requireGithubRun(req, res);
+    if (!run) return;
+    try {
+      const data = await github.listArtifactsForWorkflowRun(owner, repoName, run.workflow_run_id);
+      res.json(data.artifacts || []);
+    } catch (err) {
+      res.status(502).json({ error: `Lecture des artifacts impossible: ${err.message}` });
+    }
+  });
+
+  app.get('/runs/:id/artifacts/:artifactId/files', async (req, res) => {
+    const run = requireGithubRun(req, res);
+    if (!run) return;
+    try {
+      const files = await listArtifactFiles(github, owner, repoName, req.params.artifactId);
+      res.json(files);
+    } catch (err) {
+      res.status(502).json({ error: `Lecture de l'artifact impossible: ${err.message}` });
+    }
+  });
+
+  app.get('/runs/:id/artifacts/:artifactId/files/*', async (req, res) => {
+    const run = requireGithubRun(req, res);
+    if (!run) return;
+    const filePath = req.params[0];
+    try {
+      const file = await readArtifactFile(github, owner, repoName, req.params.artifactId, filePath);
+      if (!file) return notFound(res, 'Fichier');
+      res.setHeader('Content-Type', file.contentType);
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.send(file.data);
+    } catch (err) {
+      res.status(502).json({ error: `Lecture du fichier impossible: ${err.message}` });
+    }
   });
 
   // --- approvals (section 15: arbitrage humain) -----------------------

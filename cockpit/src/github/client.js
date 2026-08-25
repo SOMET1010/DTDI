@@ -57,6 +57,24 @@ function createGithubClient({ token, fetchImpl = fetch, baseUrl = GITHUB_API } =
     listArtifactsForWorkflowRun(owner, repo, runId) {
       return request(`/repos/${owner}/${repo}/actions/runs/${runId}/artifacts?per_page=50`);
     },
+    // Binary download (a zip), not JSON — GitHub replies with a redirect
+    // to a signed blob URL, which fetch follows automatically.
+    async downloadArtifactZip(owner, repo, artifactId) {
+      const headers = {
+        Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+        'User-Agent': 'pass-ai-orchestrator-cockpit',
+      };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const res = await fetchImpl(`${baseUrl}/repos/${owner}/${repo}/actions/artifacts/${artifactId}/zip`, { headers });
+      if (!res.ok) {
+        const err = new Error(`GitHub API GET artifact zip ${artifactId} -> ${res.status}`);
+        err.status = res.status;
+        throw err;
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    },
   };
 }
 

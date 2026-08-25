@@ -2,6 +2,7 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const AdmZip = require('adm-zip');
 const { openDatabase } = require('../src/db/client');
 const { createRepository } = require('../src/db/repository');
 const { createApp } = require('../src/api/server');
@@ -152,6 +153,80 @@ test('POST /missions/:id/pause then /resume toggles paused_at', async () => {
     res = await fetch(`${base}/missions/${mission.id}/resume`, { method: 'POST' });
     body = await res.json();
     assert.equal(body.paused_at, null);
+  } finally {
+    await stop(server);
+  }
+});
+
+function buildFakeArtifactZip() {
+  const zip = new AdmZip();
+  zip.addFile('screenshots/home.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+  zip.addFile('test-summary.txt', Buffer.from('all good', 'utf8'));
+  return zip.toBuffer();
+}
+
+test('GET /runs/:id/artifacts returns [] when the run has no workflow_run_id yet (no invented evidence)', async () => {
+  const { repo, server, base } = await startServer();
+  const project = repo.upsertProject({ name: 'P', repository: 'o/r', defaultBranch: 'main' });
+  const mission = repo.createMission({ missionKey: 'M-1', projectId: project.id, lot: 'C1', objective: 'obj' });
+  const run = repo.upsertRun({ missionId: mission.id, cycle: 1, headSha: 'a'.repeat(20), status: 'NOT_VERIFIED' });
+  try {
+    const res = await fetch(`${base}/runs/${run.id}/artifacts`);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), []);
+  } finally {
+    await stop(server);
+  }
+});
+
+test('GET /runs/:id/artifacts 503s when GitHub is not configured but the run does have a workflow run', async () => {
+  const { repo, server, base } = await startServer();
+  const project = repo.upsertProject({ name: 'P', repository: 'o/r', defaultBranch: 'main' });
+  const mission = repo.createMission({ missionKey: 'M-1', projectId: project.id, lot: 'C1', objective: 'obj' });
+  const run = repo.upsertRun({ missionId: mission.id, cycle: 1, headSha: 'a'.repeat(20), status: 'NOT_VERIFIED', workflowRunId: 555 });
+  try {
+    const res = await fetch(`${base}/runs/${run.id}/artifacts`);
+    assert.equal(res.status, 503);
+  } finally {
+    await stop(server);
+  }
+});
+
+test('GET /runs/:id/artifacts/:artifactId/files lists entries, and /files/* serves one with the right content-type', async () => {
+  const zipBuffer = buildFakeArtifactZip();
+  const github = {
+    async listArtifactsForWorkflowRun() {
+      return { artifacts: [{ id: 42, name: 'pass-ai-review-1-abc', size_in_bytes: zipBuffer.length }] };
+    },
+    async downloadArtifactZip() {
+      return zipBuffer;
+    },
+  };
+  const { repo, server, base } = await startServer({ github, owner: 'SOMET1010', repoName: 'DTDI' });
+  const project = repo.upsertProject({ name: 'P', repository: 'SOMET1010/DTDI', defaultBranch: 'main' });
+  const mission = repo.createMission({ missionKey: 'M-1', projectId: project.id, lot: 'C1', objective: 'obj' });
+  const run = repo.upsertRun({ missionId: mission.id, cycle: 1, headSha: 'a'.repeat(20), status: 'NOT_VERIFIED', workflowRunId: 555 });
+  try {
+    let res = await fetch(`${base}/runs/${run.id}/artifacts`);
+    const artifacts = await res.json();
+    assert.equal(artifacts.length, 1);
+    assert.equal(artifacts[0].id, 42);
+
+    res = await fetch(`${base}/runs/${run.id}/artifacts/42/files`);
+    const files = await res.json();
+    assert.deepEqual(
+      files.map((f) => f.path).sort(),
+      ['screenshots/home.png', 'test-summary.txt']
+    );
+
+    res = await fetch(`${base}/runs/${run.id}/artifacts/42/files/screenshots/home.png`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get('content-type'), 'image/png');
+    const bytes = Buffer.from(await res.arrayBuffer());
+    assert.deepEqual(bytes, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+
+    res = await fetch(`${base}/runs/${run.id}/artifacts/42/files/does/not/exist.png`);
+    assert.equal(res.status, 404);
   } finally {
     await stop(server);
   }

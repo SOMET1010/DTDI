@@ -255,6 +255,26 @@ main { max-width: 960px; margin: 0 auto; padding: 1rem 1rem 3rem; }
 .finding-item .fi-severity.MINOR, .finding-item .fi-severity.MINEURE { background: var(--surface-2); color: var(--text-muted); }
 .finding-item .fi-fix { color: var(--text-muted); margin-top: 0.25rem; }
 
+/* ---------- visual evidence ---------- */
+.visual-evidence { display: flex; flex-wrap: wrap; gap: 0.9rem; }
+.evidence-shot {
+  width: 160px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.evidence-shot img { display: block; width: 100%; height: auto; }
+.evidence-shot .evidence-caption {
+  font-size: 0.7rem; color: var(--text-muted); padding: 0.3rem 0.45rem; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.evidence-shot.crashed { border-color: var(--nok); }
+.evidence-crash-banner {
+  width: 100%; font-size: 0.8rem; color: var(--nok); background: var(--nok-bg);
+  border: 1px solid var(--nok); border-radius: 8px; padding: 0.5rem 0.75rem;
+}
+
 /* ---------- timeline ---------- */
 .timeline-header { display: flex; justify-content: space-between; align-items: center; }
 .tech-toggle { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem; }
