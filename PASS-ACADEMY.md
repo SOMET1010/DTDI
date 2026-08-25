@@ -8,4 +8,4 @@ Build Android propre de PASS Academy pour test sur smartphone.
 - six parcours PASS ;
 - build reproductible par GitHub Actions.
 
-La branche `pass-academy-v03` produit l’artifact `PASS-Academy-Android-v0.3`.
+La branche `pass-academy-v03` produit l’artifact `PASS-Academy-Android-v1.3.0-recette-zero-lecture-01`.
