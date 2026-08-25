@@ -25,7 +25,13 @@ jobs:
     outputs:
       needs_claude: ${{ steps.reviewer.outputs.needs_claude }}
       claude_prompt: ${{ steps.reviewer.outputs.claude_prompt }}
+      anthropic_configured: ${{ steps.config.outputs.anthropic_configured }}
     steps:
+      - name: Compute configuration flags
+        id: config
+        shell: bash
+        run: echo "anthropic_configured=${{ secrets.ANTHROPIC_API_KEY != '' }}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -111,7 +117,7 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       needs.review.outputs.needs_claude == 'true' &&
-      secrets.ANTHROPIC_API_KEY != '' &&
+      needs.review.outputs.anthropic_configured == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.user.login == github.repository_owner
     runs-on: ubuntu-latest
