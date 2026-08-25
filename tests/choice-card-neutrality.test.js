@@ -17,12 +17,20 @@ const { test, summary } = require('./lib/mini-test');
 
 const NEUTRAL_FILL = '#F5F7FA';
 const CANVAS_RECT = /^<svg viewBox="0 0 160 110"><rect width="160" height="110" rx="18" fill="(#[0-9A-Fa-f]{6})"\/>/;
+// Repère d'asset en attente (C2.1, voir art/scenes-famille-b.js) : même
+// gabarit quel que soit good/bad, donc neutre par construction — pas de
+// fond SVG à vérifier avec CANVAS_RECT.
+const ASSET_REQUIRED_MARKER = 'class="assetRequired"';
 
 const ctx = loadContentGlobals([
+  'art/scenes-v13.js',
+  'art/scenes-famille-b.js',
   'content/stories-v13.js',
+  'content/famille-b-stories.js',
   'content/ejustice-pilot-v13.js',
   'content/narrative-pilots-v13.js',
   'content/basic-pilots-v13.js',
+  'content/famille-b-pilots.js',
 ]);
 
 function getPilot(id) {
@@ -45,6 +53,11 @@ for (const catalogEntry of ctx.PASS_STORIES) {
       const label = `"${catalogEntry.id}" scène ${sceneIndex} choix ${choiceIndex}`;
 
       test(`${label} : le fond de la carte est neutre, quelle que soit la bonne réponse`, () => {
+        if (choice.visual.includes(ASSET_REQUIRED_MARKER)) {
+          // Repère en attente : même gabarit .assetRequired pour toutes les
+          // cartes, good ou bad — neutre par construction, rien à comparer.
+          return;
+        }
         const match = CANVAS_RECT.exec(choice.visual);
         assert.ok(match, `${label} : fond de carte introuvable ou format inattendu`);
         assert.strictEqual(

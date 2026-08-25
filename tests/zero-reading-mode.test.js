@@ -3,7 +3,7 @@
 // C1.4 — Mode de test zéro lecture.
 //
 // Ce que ce test PEUT prouver mécaniquement : activer le mode ne casse
-// aucune navigation (aucune exception, les 10 histoires du catalogue
+// aucune navigation (aucune exception, toutes les histoires du catalogue
 // restent terminables). Ce qu'il NE PEUT PAS prouver : qu'une personne ne
 // sachant lire aucun mot termine réellement chaque histoire — cette
 // simulation n'a pas de moteur de rendu CSS/visuel, rien ne "voit" si un
@@ -38,7 +38,7 @@ test('activer le mode zéro lecture ne lève aucune exception', () => {
   assert.strictEqual(app.classList.contains('zeroRead'), false, 'toggleRead() doit pouvoir le désactiver');
 });
 
-test('les 10 histoires restent terminables (finish()) une fois le mode zéro lecture actif', () => {
+test('toutes les histoires restent terminables (finish()) une fois le mode zéro lecture actif', () => {
   const { sandbox } = loadApp();
   sandbox.toggleRead();
   const getState = probe(sandbox);

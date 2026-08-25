@@ -13,19 +13,29 @@ const { loadContentGlobals } = require('./lib/load-content');
 const { test, summary } = require('./lib/mini-test');
 
 const RECOGNIZED_ACTIONS = ['next', 'choice', 'finish'];
-const EXPECTED_STORY_COUNT = 10;
+// 10 histoires historiques (pass-academy-v03, gelées pour la recette
+// terrain) + 4 histoires Famille B ajoutées en C2.1.
+const EXPECTED_STORY_COUNT = 14;
+// Repère d'asset en attente (voir art/scenes-famille-b.js) : accepté comme
+// illustration valide au même titre qu'un <svg>/<img> livré, tant qu'il est
+// bien un signal explicite et non une interprétation graphique inventée.
+const ASSET_REQUIRED_MARKER = 'class="assetRequired"';
 
 console.log(
-  'Chargement de content/stories-v13.js, ejustice-pilot-v13.js, narrative-pilots-v13.js, ' +
-  'basic-pilots-v13.js, art/scenes-v13.js...\n'
+  'Chargement de content/stories-v13.js, famille-b-stories.js, ejustice-pilot-v13.js, ' +
+  'narrative-pilots-v13.js, basic-pilots-v13.js, famille-b-pilots.js, art/scenes-v13.js, ' +
+  'scenes-famille-b.js...\n'
 );
 
 const ctx = loadContentGlobals([
+  'art/scenes-v13.js',
+  'art/scenes-famille-b.js',
   'content/stories-v13.js',
+  'content/famille-b-stories.js',
   'content/ejustice-pilot-v13.js',
   'content/narrative-pilots-v13.js',
   'content/basic-pilots-v13.js',
-  'art/scenes-v13.js',
+  'content/famille-b-pilots.js',
 ]);
 
 const stories = ctx.PASS_STORIES;
@@ -145,9 +155,10 @@ for (const id of STORY_IDS) {
       `"${id}" : PASS_SCENES doit avoir ${pilot.scenes.length} illustration(s), trouvé ${(art || []).length}`
     );
     art.forEach((svg, i) => {
+      const trimmed = typeof svg === 'string' ? svg.trim() : '';
       assert.ok(
-        typeof svg === 'string' && svg.trim().startsWith('<svg'),
-        `"${id}" scène ${i} : illustration absente ou invalide`
+        trimmed.startsWith('<svg') || trimmed.startsWith('<img') || trimmed.includes(ASSET_REQUIRED_MARKER),
+        `"${id}" scène ${i} : illustration absente ou invalide (attendu <svg>, <img>, ou un repère ASSET_REQUIRED explicite)`
       );
     });
   });
