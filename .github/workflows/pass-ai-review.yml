@@ -158,22 +158,27 @@ jobs:
       github.event.pull_request.user.login == github.repository_owner
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
       issues: write
       actions: read
     steps:
-      # A dedicated PAT, not the default GITHUB_TOKEN: a push made with
-      # GITHUB_TOKEN is deliberately prevented by GitHub from triggering
-      # further workflow runs, which would otherwise silently break the
-      # "correction -> new independent review" loop.
+      # No GH_PAT here on purpose: Claude must never hold write
+      # credentials. persist-credentials: false means even the ambient
+      # checkout token isn't left usable for a push — any push attempt
+      # made from inside the next step simply fails for lack of auth.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
-          token: ${{ secrets.GH_PAT }}
+          persist-credentials: false
 
-      - name: Claude corrects NOK findings
+      - name: Record pre-correction HEAD
+        id: pre
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Claude corrects NOK findings (no write access)
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -182,36 +187,37 @@ jobs:
             --max-turns 12
             --allowedTools "Edit,Read,Write,Bash(node tests/content-structure.test.js),Bash(gradle :app:assembleDebug:*),Bash(git status:*),Bash(git diff:*),GlobTool,GrepTool"
 
-      # SEC-001 (human arbitration decision, see commit message): the
-      # action grants Claude `git add`/`git commit`/push internally
-      # regardless of --allowedTools above, so nothing before this point
-      # actually stops it from touching protected paths. This step is
-      # the real, deterministic control: if the commit(s) it just pushed
-      # touch anything protected, revert the branch immediately.
-      - name: Enforce scope guardrail on the correction
+      # SEC-001 (human arbitration decision, see commit message): this is
+      # now the ONLY step in the job that can decide a push happens, and
+      # it decides BEFORE any credential exists to push with — nothing
+      # protected can ever reach the remote branch, let alone trigger a
+      # workflow run with secrets, even for a moment.
+      - name: Validate scope before any push
         id: scope_guard
-        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          BEFORE_SHA="${{ github.event.pull_request.head.sha }}"
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          git fetch origin "$BRANCH"
-          AFTER_SHA=$(git rev-parse "origin/$BRANCH")
+          BEFORE_SHA="${{ steps.pre.outputs.sha }}"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git -c user.name="pass-ai-orchestrator" -c user.email="actions@github.com" commit -m "wip: uncommitted correction changes" --no-verify
+          fi
+          AFTER_SHA=$(git rev-parse HEAD)
           if [ "$AFTER_SHA" = "$BEFORE_SHA" ]; then
-            echo "No new commit was pushed by the correction step."
+            echo "Claude made no changes."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             echo "violation=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
           CHANGED=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")
           echo "Files changed by the correction:"
           echo "$CHANGED"
           FORBIDDEN_REGEX='(^|/)\.github/|(^|/)\.orchestrator/|docs/PASS-ACADEMY-PEDAGOGICAL-CONTRACT|docs/PASS-ACADEMY-UX-DOCTRINE|docs/pass-academy-story-contract|(^|/)\.env(\.|$)|secret|credential|\.pem$|\.key$'
           VIOLATIONS=$(printf '%s\n' "$CHANGED" | grep -Ei "$FORBIDDEN_REGEX" || true)
           if [ -n "$VIOLATIONS" ]; then
-            echo "SCOPE VIOLATION — reverting $BRANCH to $BEFORE_SHA"
+            echo "SCOPE VIOLATION — refusing to push"
             echo "$VIOLATIONS"
-            git push origin "$BEFORE_SHA:refs/heads/$BRANCH" --force
             echo "violation=true" >> "$GITHUB_OUTPUT"
             {
               echo "files<<EOF_FILES"
@@ -221,6 +227,16 @@ jobs:
           else
             echo "violation=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Push the validated correction
+        if: steps.scope_guard.outputs.has_changes == 'true' && steps.scope_guard.outputs.violation == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          BEFORE_SHA="${{ steps.pre.outputs.sha }}"
+          git remote set-url origin "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
+          git push origin "HEAD:refs/heads/$BRANCH" --force-with-lease="$BRANCH:$BEFORE_SHA"
 
       - name: Report scope violation and request human arbitration
         if: steps.scope_guard.outputs.violation == 'true'
@@ -232,7 +248,7 @@ jobs:
             echo '<!-- PASS-AI-REVIEW protocol=v2 run=${{ github.repository }}#${{ github.event.pull_request.number }}@${{ github.event.pull_request.head.sha }} -->'
             echo '## ChatGPT QA — BLOCKED'
             echo
-            echo 'La correction automatique de Claude modifiait des chemins protégés. Le commit a été annulé immédiatement (le dernier commit revu reste HEAD) avant toute nouvelle revue.'
+            echo "La correction proposée par Claude touchait des chemins protégés. Rien n'a été poussé — la branche n'a jamais bougé."
             echo
             echo '### SCOPE-001 — CRITICAL — FAIL'
             echo 'Correction automatique hors périmètre autorisé.'
