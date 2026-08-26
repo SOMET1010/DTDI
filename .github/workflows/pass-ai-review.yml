@@ -11,8 +11,6 @@ permissions:
 env:
   OPENAI_REVIEW_MODEL: gpt-5.6
   OPENAI_CONFIGURED: ${{ secrets.OPENAI_API_KEY != '' }}
-  ANTHROPIC_CONFIGURED: ${{ secrets.ANTHROPIC_API_KEY != '' }}
-  GH_PAT_CONFIGURED: ${{ secrets.GH_PAT != '' }}
 
 jobs:
   review:
@@ -23,19 +21,7 @@ jobs:
       pull-requests: write
       issues: write
       actions: read
-    outputs:
-      needs_claude: ${{ steps.reviewer.outputs.needs_claude }}
-      claude_prompt: ${{ steps.reviewer.outputs.claude_prompt }}
-      anthropic_configured: ${{ steps.config.outputs.anthropic_configured }}
-      gh_pat_configured: ${{ steps.config.outputs.gh_pat_configured }}
     steps:
-      - name: Compute configuration flags
-        id: config
-        shell: bash
-        run: |
-          echo "anthropic_configured=${{ secrets.ANTHROPIC_API_KEY != '' }}" >> "$GITHUB_OUTPUT"
-          echo "gh_pat_configured=${{ secrets.GH_PAT != '' }}" >> "$GITHUB_OUTPUT"
-
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -118,11 +104,10 @@ jobs:
           } > .orchestrator/runtime/test-summary.txt
 
       - name: Setup incomplete
-        if: env.OPENAI_CONFIGURED != 'true' || env.ANTHROPIC_CONFIGURED != 'true' || env.GH_PAT_CONFIGURED != 'true'
+        if: env.OPENAI_CONFIGURED != 'true'
         run: |
-          echo '### PASS AI Orchestrator partially configured' >> "$GITHUB_STEP_SUMMARY"
-          echo 'OPENAI_API_KEY, ANTHROPIC_API_KEY and GH_PAT are required for the full review/correction loop.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Without GH_PAT, Claude can still be asked to correct findings, but the push will not automatically trigger a new independent review (GITHUB_TOKEN pushes do not re-trigger pull_request workflows).' >> "$GITHUB_STEP_SUMMARY"
+          echo '### PASS AI Orchestrator not configured' >> "$GITHUB_STEP_SUMMARY"
+          echo 'OPENAI_API_KEY is required to produce an independent review.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Independent ChatGPT review
         id: reviewer
@@ -146,122 +131,3 @@ jobs:
           name: pass-ai-review-${{ github.event.pull_request.number || 'manual' }}-${{ github.sha }}
           path: .orchestrator/runtime/
           if-no-files-found: warn
-
-  correct:
-    needs: review
-    if: >-
-      github.event_name == 'pull_request' &&
-      needs.review.outputs.needs_claude == 'true' &&
-      needs.review.outputs.anthropic_configured == 'true' &&
-      needs.review.outputs.gh_pat_configured == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.user.login == github.repository_owner
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      actions: read
-    steps:
-      # No GH_PAT here on purpose: Claude must never hold write
-      # credentials. persist-credentials: false means even the ambient
-      # checkout token isn't left usable for a push — any push attempt
-      # made from inside the next step simply fails for lack of auth.
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.ref }}
-          persist-credentials: false
-
-      - name: Record pre-correction HEAD
-        id: pre
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Claude corrects NOK findings (no write access)
-        continue-on-error: true
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ needs.review.outputs.claude_prompt }}
-          claude_args: |
-            --max-turns 12
-            --allowedTools "Edit,Read,Write,Bash(node tests/content-structure.test.js),Bash(gradle :app:assembleDebug:*),Bash(git status:*),Bash(git diff:*),GlobTool,GrepTool"
-
-      # SEC-001 (human arbitration decision, see commit message): this is
-      # now the ONLY step in the job that can decide a push happens, and
-      # it decides BEFORE any credential exists to push with — nothing
-      # protected can ever reach the remote branch, let alone trigger a
-      # workflow run with secrets, even for a moment.
-      - name: Validate scope before any push
-        id: scope_guard
-        shell: bash
-        run: |
-          set -euo pipefail
-          BEFORE_SHA="${{ steps.pre.outputs.sha }}"
-          git add -A
-          if ! git diff --cached --quiet; then
-            git -c user.name="pass-ai-orchestrator" -c user.email="actions@github.com" commit -m "wip: uncommitted correction changes" --no-verify
-          fi
-          AFTER_SHA=$(git rev-parse HEAD)
-          if [ "$AFTER_SHA" = "$BEFORE_SHA" ]; then
-            echo "Claude made no changes."
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "violation=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          CHANGED=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")
-          echo "Files changed by the correction:"
-          echo "$CHANGED"
-          FORBIDDEN_REGEX='(^|/)\.github/|(^|/)\.orchestrator/|docs/PASS-ACADEMY-PEDAGOGICAL-CONTRACT|docs/PASS-ACADEMY-UX-DOCTRINE|docs/pass-academy-story-contract|(^|/)\.env(\.|$)|secret|credential|\.pem$|\.key$'
-          VIOLATIONS=$(printf '%s\n' "$CHANGED" | grep -Ei "$FORBIDDEN_REGEX" || true)
-          if [ -n "$VIOLATIONS" ]; then
-            echo "SCOPE VIOLATION — refusing to push"
-            echo "$VIOLATIONS"
-            echo "violation=true" >> "$GITHUB_OUTPUT"
-            {
-              echo "files<<EOF_FILES"
-              echo "$VIOLATIONS"
-              echo "EOF_FILES"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "violation=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Push the validated correction
-        if: steps.scope_guard.outputs.has_changes == 'true' && steps.scope_guard.outputs.violation == 'false'
-        shell: bash
-        run: |
-          set -euo pipefail
-          BRANCH="${{ github.event.pull_request.head.ref }}"
-          BEFORE_SHA="${{ steps.pre.outputs.sha }}"
-          git remote set-url origin "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git"
-          git push origin "HEAD:refs/heads/$BRANCH" --force-with-lease="$BRANCH:$BEFORE_SHA"
-
-      - name: Report scope violation and request human arbitration
-        if: steps.scope_guard.outputs.violation == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          {
-            echo '<!-- PASS-AI-REVIEW protocol=v2 run=${{ github.repository }}#${{ github.event.pull_request.number }}@${{ github.event.pull_request.head.sha }} -->'
-            echo '## ChatGPT QA — BLOCKED'
-            echo
-            echo "La correction proposée par Claude touchait des chemins protégés. Rien n'a été poussé — la branche n'a jamais bougé."
-            echo
-            echo '### SCOPE-001 — CRITICAL — FAIL'
-            echo 'Correction automatique hors périmètre autorisé.'
-            echo '**Localisation:**'
-            echo '```'
-            echo "${{ steps.scope_guard.outputs.files }}"
-            echo '```'
-            echo '**Correction demandée:** Traiter ce constat manuellement, hors boucle automatique.'
-            echo
-            echo '**Action:** REQUEST_HUMAN_ARBITRATION'
-          } > /tmp/scope-violation.md
-          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/scope-violation.md
-
-      - name: Fail the job on scope violation
-        if: steps.scope_guard.outputs.violation == 'true'
-        run: exit 1
