@@ -7,13 +7,13 @@ Flux :
 2. `PASS AI Review` exécute les tests de structure et le build Android debug et capture les preuves (y compris une capture d'écran sur émulateur).
 3. OpenAI Responses API (`gpt-5.6` par défaut) effectue une revue structurée selon `PASS_ACADEMY_REVIEW_CONTRACT.md`.
 4. Le verdict GO/NOK et les preuves sont publiés dans la PR.
-5. Si le verdict est NOK / `CORRECT_AND_RESUBMIT`, le workflow invoque `anthropics/claude-code-action@v1` avec les constats structurés. Claude corrige la branche de PR.
-6. Le nouveau push relance une revue indépendante. Après deux NOK automatiques antérieurs, le système demande un arbitrage humain au lieu de boucler indéfiniment.
+
+**Correction automatique désactivée (décision humaine, 26/08/2026) :** l'étape « Claude corrige et pousse automatiquement » a été retirée. Chaque cycle de durcissement sécurité faisait apparaître un nouveau constat plus profond sans converger ; en attendant une revue de sécurité complète et dédiée, tout NOK est traité manuellement (par Patrick, ou par Claude sur demande explicite dans une session). Ce README sera mis à jour si la boucle automatique est réactivée.
 
 Secrets GitHub requis :
-- `OPENAI_API_KEY`
-- `ANTHROPIC_API_KEY`
-- `GH_PAT` — jeton dédié (Contents + Pull requests: Read and write) utilisé uniquement pour le push de correction à l'étape 6. Le `GITHUB_TOKEN` par défaut ne peut pas être utilisé ici : GitHub empêche volontairement un push fait avec ce jeton de redéclencher un workflow `pull_request`, ce qui casserait la relance automatique de revue.
+- `OPENAI_API_KEY` — seul secret lu par ce workflow actuellement.
+
+`ANTHROPIC_API_KEY` et `GH_PAT` ne sont plus utilisés tant que la correction automatique reste désactivée ; ils peuvent être retirés des secrets du dépôt sans casser ce workflow.
 
 Aucun secret n'est stocké dans le dépôt.
 
