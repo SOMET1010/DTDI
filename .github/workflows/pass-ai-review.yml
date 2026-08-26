@@ -162,7 +162,6 @@ jobs:
       pull-requests: write
       issues: write
       actions: read
-      id-token: write
     steps:
       # A dedicated PAT, not the default GITHUB_TOKEN: a push made with
       # GITHUB_TOKEN is deliberately prevented by GitHub from triggering
@@ -182,3 +181,71 @@ jobs:
           claude_args: |
             --max-turns 12
             --allowedTools "Edit,Read,Write,Bash(node tests/content-structure.test.js),Bash(gradle :app:assembleDebug:*),Bash(git status:*),Bash(git diff:*),GlobTool,GrepTool"
+
+      # SEC-001 (human arbitration decision, see commit message): the
+      # action grants Claude `git add`/`git commit`/push internally
+      # regardless of --allowedTools above, so nothing before this point
+      # actually stops it from touching protected paths. This step is
+      # the real, deterministic control: if the commit(s) it just pushed
+      # touch anything protected, revert the branch immediately.
+      - name: Enforce scope guardrail on the correction
+        id: scope_guard
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          BEFORE_SHA="${{ github.event.pull_request.head.sha }}"
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+          git fetch origin "$BRANCH"
+          AFTER_SHA=$(git rev-parse "origin/$BRANCH")
+          if [ "$AFTER_SHA" = "$BEFORE_SHA" ]; then
+            echo "No new commit was pushed by the correction step."
+            echo "violation=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          CHANGED=$(git diff --name-only "$BEFORE_SHA" "$AFTER_SHA")
+          echo "Files changed by the correction:"
+          echo "$CHANGED"
+          FORBIDDEN_REGEX='(^|/)\.github/|(^|/)\.orchestrator/|docs/PASS-ACADEMY-PEDAGOGICAL-CONTRACT|docs/PASS-ACADEMY-UX-DOCTRINE|docs/pass-academy-story-contract|(^|/)\.env(\.|$)|secret|credential|\.pem$|\.key$'
+          VIOLATIONS=$(printf '%s\n' "$CHANGED" | grep -Ei "$FORBIDDEN_REGEX" || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "SCOPE VIOLATION — reverting $BRANCH to $BEFORE_SHA"
+            echo "$VIOLATIONS"
+            git push origin "$BEFORE_SHA:refs/heads/$BRANCH" --force
+            echo "violation=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "files<<EOF_FILES"
+              echo "$VIOLATIONS"
+              echo "EOF_FILES"
+            } >> "$GITHUB_OUTPUT"
+          else
+            echo "violation=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report scope violation and request human arbitration
+        if: steps.scope_guard.outputs.violation == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          {
+            echo '<!-- PASS-AI-REVIEW protocol=v2 run=${{ github.repository }}#${{ github.event.pull_request.number }}@${{ github.event.pull_request.head.sha }} -->'
+            echo '## ChatGPT QA — BLOCKED'
+            echo
+            echo 'La correction automatique de Claude modifiait des chemins protégés. Le commit a été annulé immédiatement (le dernier commit revu reste HEAD) avant toute nouvelle revue.'
+            echo
+            echo '### SCOPE-001 — CRITICAL — FAIL'
+            echo 'Correction automatique hors périmètre autorisé.'
+            echo '**Localisation:**'
+            echo '```'
+            echo "${{ steps.scope_guard.outputs.files }}"
+            echo '```'
+            echo '**Correction demandée:** Traiter ce constat manuellement, hors boucle automatique.'
+            echo
+            echo '**Action:** REQUEST_HUMAN_ARBITRATION'
+          } > /tmp/scope-violation.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file /tmp/scope-violation.md
+
+      - name: Fail the job on scope violation
+        if: steps.scope_guard.outputs.violation == 'true'
+        run: exit 1
