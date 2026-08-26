@@ -18,7 +18,13 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN || '';
 const GITHUB_OWNER = process.env.GITHUB_OWNER || '';
 const GITHUB_REPO = process.env.GITHUB_REPO || '';
 const DEFAULT_BRANCH = process.env.GITHUB_DEFAULT_BRANCH || 'pass-academy-v03';
-const POLL_INTERVAL_MS = Number(process.env.COCKPIT_POLL_INTERVAL_MS || 10000);
+// Section 21 accepts 5-15s as an MVP baseline, but polling that fast
+// against the real GitHub API for hours on end risks tripping GitHub's
+// secondary (abuse-detection) rate limit — which then fails every
+// subsequent tick the same way, silently freezing the mission's state
+// until someone notices. 30s stays well inside the accepted range while
+// giving real headroom.
+const POLL_INTERVAL_MS = Number(process.env.COCKPIT_POLL_INTERVAL_MS || 30000);
 const STATIC_DIR = path.join(__dirname, '..', 'public');
 
 function ensureDataDir(dbPath) {
@@ -63,10 +69,15 @@ function main() {
         try {
           const missions = orchestrationRepo.listActiveMissions();
           for (const mission of missions) {
-            await syncMission({ github, orchestrationRepo, owner: GITHUB_OWNER, repoName: GITHUB_REPO, mission });
+            // One mission's failure (a transient GitHub error, a rate
+            // limit) must never stop the others from syncing, and must
+            // never silently wedge this tick forever — log and move on.
+            try {
+              await syncMission({ github, orchestrationRepo, owner: GITHUB_OWNER, repoName: GITHUB_REPO, mission });
+            } catch (err) {
+              console.error(`Background sync failed for mission ${mission.mission_key} (#${mission.id}):`, err.status || '', err.message);
+            }
           }
-        } catch (err) {
-          console.error('Background sync failed:', err.message);
         } finally {
           polling = false;
         }
