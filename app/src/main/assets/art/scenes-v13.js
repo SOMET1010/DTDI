@@ -1,3 +1,19 @@
+// Prototype Tata Nanti (branche pass-academy-tata-nanti-prototype) — nouvelle
+// doctrine d'assets : plus d'illustration narrative artisanale en SVG pour
+// "phone-photo", en attendant de vraies images fournies par l'équipe design
+// pour valider une nouvelle grammaire zéro lecture. Repère neutre, même
+// gabarit quel que soit good/bad — jamais une interprétation graphique de
+// mon cru. Voir docs/C2.2-TATA-NANTI-ASSETS-REQUIRED.md pour le manifeste.
+window.PASS_ASSET_REQUIRED_LIST = window.PASS_ASSET_REQUIRED_LIST || [];
+window.assetRequired = function (id, desc) {
+  window.PASS_ASSET_REQUIRED_LIST.push({ id: id, desc: desc });
+  return '<div class="assetRequired" role="img" aria-label="Asset à fournir : ' + desc + '">' +
+    '<span class="arTag">ASSET_REQUIRED</span>' +
+    '<span class="arId">' + id + '</span>' +
+    '<span class="arDesc">' + desc + '</span>' +
+    '</div>';
+};
+
 window.PASS_SCENES={
  ejustice:[
  `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#FFF4DF"/><rect y="126" width="320" height="54" fill="#D7B98E"/><rect x="34" y="76" width="96" height="50" rx="8" fill="#9A673D"/><rect x="46" y="55" width="70" height="24" rx="6" fill="#E9C99F"/><rect x="210" y="44" width="62" height="88" rx="10" fill="#2256A3"/><rect x="218" y="54" width="46" height="62" rx="4" fill="#EEF5FF"/><path d="M228 68h26M228 80h20M228 92h23" stroke="#2256A3" stroke-width="5" stroke-linecap="round"/><circle cx="240" cy="125" r="4" fill="#fff"/></svg>`,
@@ -14,11 +30,11 @@ window.PASS_SCENES={
  `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#EFFBEF"/><rect x="101" y="35" width="118" height="112" rx="10" fill="#fff" stroke="#2E9D55" stroke-width="5"/><path d="M120 67h80M120 86h60M120 105h72" stroke="#A8C8AB" stroke-width="6" stroke-linecap="round"/><circle cx="236" cy="44" r="24" fill="#2E9D55"/><path d="M226 44l7 7 14-16" stroke="#fff" stroke-width="6" fill="none"/></svg>`
  ],
  'phone-photo':[
- `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#FFF3DD"/><rect x="122" y="30" width="76" height="120" rx="16" fill="#17233C"/><rect x="133" y="42" width="54" height="82" rx="7" fill="#EEF5FF"/><circle cx="160" cy="136" r="6" fill="#fff"/><circle cx="95" cy="76" r="22" fill="#F08224" opacity=".25"/><circle cx="225" cy="76" r="22" fill="#2E9D55" opacity=".2"/></svg>`,
- `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#EEF5FF"/><rect x="112" y="45" width="96" height="78" rx="16" fill="#2256A3"/><rect x="132" y="31" width="39" height="20" rx="6" fill="#2256A3"/><circle cx="160" cy="84" r="24" fill="#fff"/><circle cx="160" cy="84" r="14" fill="#7DB7E8"/></svg>`,
- `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#FFF8E9"/><rect x="119" y="22" width="82" height="136" rx="17" fill="#17233C"/><rect x="130" y="36" width="60" height="90" rx="7" fill="#EAF6E8"/><circle cx="147" cy="74" r="17" fill="#F2C7A9"/><circle cx="174" cy="74" r="17" fill="#B78667"/><circle cx="160" cy="142" r="6" fill="#fff"/></svg>`,
- `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#EEF5FF"/><circle cx="160" cy="92" r="43" fill="#fff" stroke="#2256A3" stroke-width="7"/><circle cx="160" cy="92" r="25" fill="#F6F8FB"/><path d="M160 49v-18" stroke="#F08224" stroke-width="8" stroke-linecap="round"/></svg>`,
- `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#FFF0EA"/><rect x="78" y="31" width="164" height="118" rx="13" fill="#fff" stroke="#F08224" stroke-width="5"/><circle cx="130" cy="85" r="27" fill="#F1C3A1"/><circle cx="190" cy="85" r="27" fill="#8A5B3E"/><path d="M95 132q65-35 130 0" fill="#8BC86C"/></svg>`
+ window.assetRequired('phone-photo-scene-0', 'Tata Nanti reçoit son téléphone PASS, entourée de ses deux petits-enfants, sourire'),
+ window.assetRequired('phone-photo-scene-1', 'Tata Nanti tient son téléphone et cherche le symbole de l’appareil photo'),
+ window.assetRequired('phone-photo-scene-2', 'Tata Nanti ouvre l’appareil photo et cadre ses petits-enfants'),
+ window.assetRequired('phone-photo-scene-3', 'Gros plan sur le bouton de déclenchement, le doigt de Tata Nanti qui appuie'),
+ window.assetRequired('phone-photo-scene-4', 'Tata Nanti regarde la photo réussie de ses petits-enfants, badge de réussite'),
  ],
  scam:[
  `<svg viewBox="0 0 320 180"><rect width="320" height="180" rx="24" fill="#EEF5FF"/><rect x="100" y="26" width="120" height="128" rx="18" fill="#17233C"/><rect x="114" y="42" width="92" height="82" rx="7" fill="#fff"/><rect x="125" y="56" width="70" height="43" rx="12" fill="#EAF2FF"/><text x="160" y="86" text-anchor="middle" font-size="19" font-family="Arial" fill="#2256A3">500 000 F</text><circle cx="160" cy="139" r="6" fill="#fff"/></svg>`,

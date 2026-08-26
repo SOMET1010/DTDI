@@ -14,6 +14,9 @@ const { test, summary } = require('./lib/mini-test');
 
 const RECOGNIZED_ACTIONS = ['next', 'choice', 'finish'];
 const EXPECTED_STORY_COUNT = 10;
+// Repère d'asset en attente (prototype Tata Nanti, voir art/scenes-v13.js) :
+// accepté comme illustration valide au même titre qu'un <svg>/<img> livré.
+const ASSET_REQUIRED_MARKER = 'class="assetRequired"';
 
 console.log(
   'Chargement de content/stories-v13.js, ejustice-pilot-v13.js, narrative-pilots-v13.js, ' +
@@ -21,11 +24,11 @@ console.log(
 );
 
 const ctx = loadContentGlobals([
+  'art/scenes-v13.js',
   'content/stories-v13.js',
   'content/ejustice-pilot-v13.js',
   'content/narrative-pilots-v13.js',
   'content/basic-pilots-v13.js',
-  'art/scenes-v13.js',
 ]);
 
 const stories = ctx.PASS_STORIES;
@@ -145,9 +148,10 @@ for (const id of STORY_IDS) {
       `"${id}" : PASS_SCENES doit avoir ${pilot.scenes.length} illustration(s), trouvé ${(art || []).length}`
     );
     art.forEach((svg, i) => {
+      const trimmed = typeof svg === 'string' ? svg.trim() : '';
       assert.ok(
-        typeof svg === 'string' && svg.trim().startsWith('<svg'),
-        `"${id}" scène ${i} : illustration absente ou invalide`
+        trimmed.startsWith('<svg') || trimmed.startsWith('<img') || trimmed.includes(ASSET_REQUIRED_MARKER),
+        `"${id}" scène ${i} : illustration absente ou invalide (attendu <svg>, <img>, ou un repère ASSET_REQUIRED explicite)`
       );
     });
   });

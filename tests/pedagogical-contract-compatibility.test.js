@@ -22,11 +22,11 @@ const { test, summary } = require('./lib/mini-test');
 const { toPedagogicalContract, validateAgainstSchema } = require('../tools/pedagogical-adapter');
 
 const ctx = loadContentGlobals([
+  'art/scenes-v13.js',
   'content/stories-v13.js',
   'content/ejustice-pilot-v13.js',
   'content/narrative-pilots-v13.js',
   'content/basic-pilots-v13.js',
-  'art/scenes-v13.js',
 ]);
 
 function getPilot(id) {
