@@ -46,10 +46,12 @@ const priorNok=await countPriorNok();
 if(review.next_action==='CORRECT_AND_RESUBMIT'&&priorNok>=1){review.review_verdict='BLOCKED';review.next_action='REQUEST_HUMAN_ARBITRATION';review.summary=`Escalade humaine au deuxième NOK du protocole ${protocol}. ${review.summary}`;}
 fs.writeFileSync('.orchestrator/runtime/review.json',JSON.stringify(review,null,2)+'\n');
 const lines=[`<!-- PASS-AI-REVIEW protocol=${protocol} run=${runId} -->`,`## ChatGPT QA — ${review.review_verdict}`,'',review.summary,'',...review.findings.flatMap(f=>[`### ${f.id} — ${f.severity} — ${f.status}`,f.finding,f.location?`**Localisation:** ${f.location}`:'',f.evidence?.length?`**Preuves:** ${f.evidence.join(' | ')}`:'',`**Correction demandée:** ${f.required_fix}`,`**À préserver:** ${f.must_preserve.join(' | ')}`,`**Revalidation:** ${f.revalidation.join(' | ')}`,'']),review.not_verified?.length?`**Non vérifié:** ${review.not_verified.join(' | ')}`:'','',`**Action:** ${review.next_action}`].filter(Boolean);
+// No automatic Claude invocation exists anymore (correct job removed):
+// never claim one is being requested. needs_claude stays informational
+// only, so the cockpit / a human reading the PR can still see the
+// reviewer's own recommendation without it looking like an automation
+// trigger.
 const needsClaude=review.next_action==='CORRECT_AND_RESUBMIT';
-if(needsClaude) lines.push('','@claude Correction automatique demandée sur les seuls constats NOK ci-dessus.');
 fs.writeFileSync('.orchestrator/runtime/review-comment.md',lines.join('\n')+'\n');
-const claudePrompt=needsClaude?`You are the PASS Academy implementation agent. Fix ONLY the independent reviewer findings below on the current PR branch. Preserve doctrine and invariants. Do not broaden scope, deploy/release, delete data, alter sensitive/security behavior or real-money behavior. Run requested tests. The GitHub action owns commit/push mechanics.\n\n${lines.join('\n')}`:'';
-fs.writeFileSync('.orchestrator/runtime/claude-fix-prompt.md',claudePrompt+'\n');
-if(process.env.GITHUB_OUTPUT){fs.appendFileSync(process.env.GITHUB_OUTPUT,`verdict=${review.review_verdict}\nnext_action=${review.next_action}\nneeds_claude=${needsClaude}\n`);if(claudePrompt){const m=`PROMPT_${Date.now()}`;fs.appendFileSync(process.env.GITHUB_OUTPUT,`claude_prompt<<${m}\n${claudePrompt}\n${m}\n`);}}
+if(process.env.GITHUB_OUTPUT){fs.appendFileSync(process.env.GITHUB_OUTPUT,`verdict=${review.review_verdict}\nnext_action=${review.next_action}\nneeds_claude=${needsClaude}\n`);}
 console.log(JSON.stringify({verdict:review.review_verdict,next_action:review.next_action,needsClaude,priorNok,protocol}));
