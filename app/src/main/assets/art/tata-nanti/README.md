@@ -2,6 +2,11 @@
 
 Cette zone est réservée au prototype UX **Tata Nanti / première photo**.
 
+**Statut : C2.1 — assets intégrés.** Les 6 PNG sont en place et branchés dans
+`content/tata-nanti-photo-v1.js` / `js/tata-nanti-photo.js`, en remplacement du
+seul écran "Ma première photo" (`phone-photo`). Voir l'observation sur l'asset 3
+ci-dessous avant validation finale.
+
 ## Règle absolue
 
 Ne pas recréer les scènes en SVG artisanal.
@@ -10,35 +15,29 @@ Ne pas remplacer un asset manquant par un pictogramme ou un placeholder narratif
 
 Si un asset manque, marquer `ASSET_REQUIRED` et arrêter l'intégration de la scène concernée.
 
-## Assets attendus
+## Assets livrés
 
-Le prototype cible 6 scènes principales :
+Les 6 scènes sont livrées et intégrées, sous ces noms exacts (différents des noms
+provisoires ci-dessus utilisés lors de la préparation de ce dossier) :
 
-1. `scene-01-situation.png`
-   - Tata Nanti avec ses deux petits-enfants.
-   - Tata tient le téléphone.
-   - La scène doit faire comprendre qu'elle vient de recevoir/utiliser son téléphone.
+1. `01_reception_telephone.png`
+   - Tata Nanti avec ses deux petits-enfants, elle tient le téléphone.
 
-2. `scene-02-intention-photo.png`
-   - Tata pense à ses petits-enfants / souhaite garder leur souvenir.
-   - L'intention "prendre une photo" doit être comprise visuellement, sans texte obligatoire.
+2. `02_intention_photo.png`
+   - Tata Nanti pense à ses petits-enfants (bulle de pensée) — l'intention "garder un souvenir" est lisible sans texte.
 
-3. `scene-03-choix-camera.png`
-   - Vue du téléphone avec plusieurs gros boutons/actions.
-   - L'appareil photo doit être une option parmi les choix.
-   - Aucun indice de couleur ne doit révéler la bonne réponse avant sélection.
+3. `03_choix_appareil_photo.png`
+   - Vue du téléphone tenu à deux mains, grille de 4 boutons (appareil photo, téléphone, musique, réglages).
+   - ⚠️ Observation d'intégration : l'icône appareil photo porte un contour lumineux jaune + éclats dans l'image livrée — un indice visuel préexistant à la sélection, alors que la doctrine du prototype demande une neutralité totale avant choix. Non corrigé ici (interdiction de retoucher l'asset) ; signalé à Patrick pour arbitrage (régénération ou acceptation).
 
-4. `scene-04-confirmation.png`
-   - Tata comprend qu'elle a choisi l'appareil photo.
-   - Feedback positif visuel + voix SUTA.
+4. `04_confirmation_bon_bouton.png`
+   - Tata Nanti souriante, grand badge coche verte à droite.
 
-5. `scene-05-prendre-photo.png`
-   - Interface appareil photo avec les petits-enfants cadrés.
-   - L'action attendue doit être évidente : appuyer sur le déclencheur.
+5. `05_prise_photo.png`
+   - Vue caméra avec les deux enfants cadrés, gros bouton déclencheur blanc déjà intégré dans l'image.
 
-6. `scene-06-resultat.png`
-   - Tata avec ses petits-enfants et la photo prise visible.
-   - Joie / réussite / résultat concret.
+6. `06_photo_reussie.png`
+   - Tata Nanti et les enfants, vignette de la photo prise avec coche verte.
 
 ## Contraintes de rendu
 

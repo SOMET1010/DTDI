@@ -60,6 +60,7 @@ function loadApp() {
         return elements[id];
       },
       createElement() { return makeEl(); },
+      querySelector() { return null; },
       querySelectorAll() { return []; },
     },
     setTimeout: (fn) => { if (typeof fn === 'function') fn(); return 0; },
@@ -78,10 +79,12 @@ function loadApp() {
   return { sandbox, elements };
 }
 
-// Sonde de test : expose activePilot/pilotIndex (des `let` internes au
-// bundle, invisibles depuis l'hôte) sans modifier les fichiers livrés.
+// Sonde de test : expose activePilot/pilotIndex (moteur partagé des 9
+// histoires) et tnpIndex (moteur dédié LOT C2.1 de "phone-photo") — des
+// `let` internes au bundle, invisibles depuis l'hôte — sans modifier les
+// fichiers livrés.
 function probe(sandbox) {
-  new vm.Script('function __probe(){ return { activePilot, pilotIndex }; }').runInContext(sandbox);
+  new vm.Script('function __probe(){ return { activePilot, pilotIndex, tnpIndex: (typeof tnpIndex !== "undefined" ? tnpIndex : undefined) }; }').runInContext(sandbox);
   return () => sandbox.__probe();
 }
 

@@ -45,6 +45,29 @@ test('les 10 histoires restent terminables (finish()) une fois le mode zéro lec
 
   for (const catalogEntry of sandbox.PASS_STORIES) {
     sandbox.openStory(catalogEntry);
+
+    // LOT C2.1 : "phone-photo" a son propre moteur (tnpIndex/tnpAnswer/
+    // tnpNext/tnpCapture/tnpFinish) et ne passe plus par activePilot — le
+    // README de app/src/main/assets/art/tata-nanti/ explique pourquoi. Les 9
+    // autres histoires continuent d'emprunter le moteur partagé ci-dessous,
+    // inchangé.
+    if (catalogEntry.id === 'phone-photo' && sandbox.TATA_NANTI_PHOTO) {
+      const scenes = sandbox.TATA_NANTI_PHOTO.scenes;
+      let state = getState();
+      let guard = 0;
+      while (state.tnpIndex < scenes.length - 1 && guard < 20) {
+        const sc = scenes[state.tnpIndex];
+        if (sc.action === 'choice') sandbox.tnpAnswer(sc.choices.findIndex((c) => c.good));
+        else if (sc.action === 'next') sandbox.tnpNext();
+        else if (sc.action === 'photo') sandbox.tnpCapture();
+        guard++;
+        state = getState();
+      }
+      assert.strictEqual(state.tnpIndex, scenes.length - 1, `"phone-photo" (moteur dédié) ne se termine pas (boucle non close après ${guard} étapes)`);
+      sandbox.tnpFinish();
+      continue;
+    }
+
     let state = getState();
     assert.ok(state.activePilot, `activePilot non défini pour "${catalogEntry.id}"`);
 

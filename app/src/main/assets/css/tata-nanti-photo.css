@@ -1,0 +1,28 @@
+/* Prototype narratif isolé — Tata Nanti / première photo (LOT C2.1). */
+.tnp{display:flex;flex-direction:column;gap:14px}
+.tnp-dots{display:flex;justify-content:center;gap:7px;margin-top:2px}
+.tnp-dots i{width:11px;height:11px;border-radius:50%;background:#d8dde5;display:block}
+.tnp-dots i.on{background:#08783e}
+.tnp-imgwrap{position:relative;width:100%;aspect-ratio:512/442;border-radius:16px;overflow:hidden;background:#EFEAdc;animation:tnpIn .4s ease}
+@keyframes tnpIn{from{opacity:.2;transform:scale(.97) translateY(6px)}to{opacity:1;transform:none}}
+.tnp-img{width:100%;height:100%;object-fit:cover;display:block}
+.tnp-missing-flag{display:none;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;background:#2A241E;color:#F3ECE0;font-family:monospace;font-size:13px;padding:16px;line-height:1.5}
+.tnp-imgwrap.tnp-missing .tnp-img{visibility:hidden}
+.tnp-imgwrap.tnp-missing .tnp-missing-flag{display:flex}
+.tnp-zones{position:absolute;inset:0}
+.tnp-zone{position:absolute;border:0;background:rgba(255,255,255,0);cursor:pointer;border-radius:12px;-webkit-tap-highlight-color:transparent}
+.tnp-zone:active{background:rgba(255,255,255,.18)}
+.tnp-zone.tnp-correct{background:rgba(46,157,85,.28);outline:3px solid #2E9D55}
+.tnp-zone.tnp-wrong{animation:tnpShake .35s}
+@keyframes tnpShake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.tnp-shutter{position:absolute;inset:0;border:0;background:rgba(255,255,255,0);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.tnp-shutter:active{background:rgba(255,255,255,.12)}
+.tnp-flash{position:absolute;inset:0;background:#fff;animation:tnpFlash .55s ease-out forwards;pointer-events:none}
+@keyframes tnpFlash{from{opacity:.9}to{opacity:0}}
+.tnp-bubble{display:flex;align-items:center;gap:10px;background:#F1EDE0;border-radius:12px;padding:10px 12px}
+.tnp-av{width:34px;height:34px;border-radius:50%;overflow:hidden;flex:none}
+.tnp-av svg{width:100%;height:100%;display:block}
+.tnp-bubble-text{flex:1;font-size:13px;color:#3a3226;line-height:1.4}
+.tnp-replay{width:38px;height:38px;border:0;border-radius:50%;background:#08783e;color:#fff;font-size:16px;flex:none}
+.tnp-continue{align-self:center;width:74px;height:74px;border:0;border-radius:50%;background:#08783e;color:#fff;font-size:28px}
+.tnp-finish{background:#0a9a43}
