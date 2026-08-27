@@ -33,20 +33,6 @@ jobs:
         run: gradle :app:assembleDebug --stacktrace
       - name: Verify APK
         run: test -f app/build/outputs/apk/debug/app-debug.apk
-      - name: Diagnostic temporaire — vérifier les assets réellement packagés
-        run: |
-          echo "Commit buildé : $(git rev-parse HEAD)"
-          rm -rf /tmp/apk-check && mkdir -p /tmp/apk-check
-          unzip -o -q app/build/outputs/apk/debug/app-debug.apk -d /tmp/apk-check
-          echo "--- assets/css/app.css : règle .welcome ---"
-          grep -o '\.welcome{[^}]*}' /tmp/apk-check/assets/css/app.css || echo "INTROUVABLE"
-          echo "--- assets/art/cartoon-v13.js : coiffure de mariam ---"
-          grep -o 'mariam:.\{0,80\}' /tmp/apk-check/assets/art/cartoon-v13.js || echo "INTROUVABLE"
-          echo "--- assets/art/tata-nanti/ ---"
-          ls -la /tmp/apk-check/assets/art/tata-nanti/ 2>&1 || echo "DOSSIER ABSENT"
-          echo "--- comparaison avec les fichiers sources du checkout ---"
-          diff app/src/main/assets/css/app.css /tmp/apk-check/assets/css/app.css && echo "app.css IDENTIQUE" || echo "app.css DIFFERENT"
-          diff app/src/main/assets/index.html /tmp/apk-check/assets/index.html && echo "index.html IDENTIQUE" || echo "index.html DIFFERENT"
       - name: Prepare named APK
         run: cp app/build/outputs/apk/debug/app-debug.apk PASS-Academy-Android-v1.3.0-recette-zero-lecture-01.apk
       - name: Calculer le checksum SHA-256
