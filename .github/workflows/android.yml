@@ -33,14 +33,19 @@ jobs:
         run: gradle :app:assembleDebug --stacktrace
       - name: Verify APK
         run: test -f app/build/outputs/apk/debug/app-debug.apk
-      - name: Prepare named APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk PASS-Academy-Android-v1.3.0-recette-zero-lecture-01.apk
-      - name: Calculer le checksum SHA-256
-        run: sha256sum PASS-Academy-Android-v1.3.0-recette-zero-lecture-01.apk | tee PASS-Academy-Android-v1.3.0-recette-zero-lecture-01.apk.sha256
+      - name: Nommer l'APK avec le commit et la branche (évite les doublons ambigus)
+        id: name
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          BRANCH_SLUG=$(echo "${GITHUB_REF_NAME}" | tr '/' '-')
+          NAME="PASS-Academy-${BRANCH_SLUG}-${SHORT_SHA}"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          cp app/build/outputs/apk/debug/app-debug.apk "$NAME.apk"
+          sha256sum "$NAME.apk" | tee "$NAME.apk.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: PASS-Academy-Android-v1.3.0-recette-zero-lecture-01
+          name: ${{ steps.name.outputs.name }}
           path: |
-            PASS-Academy-Android-v1.3.0-recette-zero-lecture-01.apk
-            PASS-Academy-Android-v1.3.0-recette-zero-lecture-01.apk.sha256
+            ${{ steps.name.outputs.name }}.apk
+            ${{ steps.name.outputs.name }}.apk.sha256
           if-no-files-found: error
